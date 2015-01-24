@@ -1,0 +1,7 @@
+
+http bloomfilter based modified dablooms(git@github.com:bitly/dablooms.git) 
+fixed: 
+    return value
+    coredump for lager capacity(10000000000)
+modified dablooms: git@github.com:wangfengliang/dablooms.git
+
