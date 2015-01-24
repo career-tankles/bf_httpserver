@@ -237,8 +237,6 @@ class BloomFilterManagerHandler(tornado.web.RequestHandler):
             support_actions = ['add', 'del']
             if action not in support_actions:
                 raise ValueError('action for %s not support' % bfname)
-            import pdb
-            pdb.set_trace()
             if action == 'add':
                 bf = self.bloomfilter(bfname)
                 if bf:
