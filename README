@@ -6,15 +6,18 @@ fixed:
 modified dablooms: git@github.com:wangfengliang/dablooms.git
 
 
+web接口:
+    http://localhost:9898/bloomfilter
+
 功能和示例:
 
-    添加过滤器, 删除过滤器:
-    curl "http://localhost:9898/manager?action=add&bf=abc&capacity=1000&error_rate=0.0001"; echo
-    curl "http://localhost:9898/manager?action=del&bf=abc"; echo
+    #添加过滤器, 删除过滤器:
+    #curl "http://localhost:9898/bloomfilter/manager/add?bf=abc&capacity=1000&error_rate=0.0001"; echo
+    #curl "http://localhost:9898/bloomfilter/manager/del?bf=abc"; echo
 
-    添加元素, 检查元素, 删除元素, 检查并添加元素:
-    curl "http://localhost:9898/bloomfilter?action=add&bf=abc&key=key1,key"; echo
-    curl "http://localhost:9898/bloomfilter?action=check&bf=abc&key=key1,key2"; echo
-    curl "http://localhost:9898/bloomfilter?action=del&bf=abc&key=key1,key2"; echo
-    curl "http://localhost:9898/bloomfilter?action=checkadd&bf=abc&key=key1,key2"; echo
+    #添加元素, 检查元素, 删除元素, 检查并添加元素:
+    #curl "http://localhost:9898/bloomfilter/query?action=add&bf=abc&key=key1,key"; echo
+    #curl "http://localhost:9898/bloomfilter/query?action=check&bf=abc&key=key1,key2"; echo
+    #curl "http://localhost:9898/bloomfilter/query?action=del&bf=abc&key=key1,key2"; echo
+    #curl "http://localhost:9898/bloomfilter/query?action=checkadd&bf=abc&key=key1,key2"; echo
 

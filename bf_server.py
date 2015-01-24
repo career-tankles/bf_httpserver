@@ -31,13 +31,17 @@ class Application(tornado.web.Application):
         self.logger = logger
         self.config_file = config_file
         self.bloomfilters = {}
+        self.bloomfilters_params = {}
         self._load_config_()
 
         handlers = [
-            (r"/bloomfilter", BloomFilterHandler),
-            (r"/manager", BloomFilterManagerHandler),
+            (r"/bloomfilter", BloomFilterListHandler),
+            (r"/bloomfilter/manager/(\w+)", BloomFilterManagerHandler),
+            (r"/bloomfilter/query", BloomFilterHandler),
         ]
         settings = dict(
+            template_path=os.path.join(os.path.dirname(__file__), "templates"),
+            static_path=os.path.join(os.path.dirname(__file__), "static"),
             debug=True,
         )
         tornado.web.Application.__init__(self, handlers, **settings)
@@ -51,19 +55,20 @@ class Application(tornado.web.Application):
         if self.conf.has_section('bloomfilters'):
             for bfname, optvalue in self.conf.items('bloomfilters'):
                 params = optvalue.split(',')
-                if len(params) != 4:
+                if len(params) != 5:
                     self.logger.error('invalid bloomfilters %s %s' % (bfname, optvalue))
                     sys.exit(1)
-                (bfname, capacity, error_rate, filename) = params
-                self._add_bloomfilter_(bfname, capacity, error_rate, filename)
+                (bfname, capacity, error_rate, filename, create_time) = params
+                self._add_bloomfilter_(bfname, capacity, error_rate, filename, create_time=create_time)
 
-    def _add_bloomfilter_(self, bfname, capacity, error_rate, filename, isnew=False):
+    def _add_bloomfilter_(self, bfname, capacity, error_rate, filename, create_time=None, isnew=False):
         capacity = int(capacity)
         error_rate = float(error_rate)
         if bfname in self.bloomfilters:
             self.logger.warn('add bloomfilter faild: %s exists' % bfname)
             return False
-
+        if not create_time:
+            create_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
         if os.path.isfile(filename):
             bf = pydablooms.load_dabloom(capacity=capacity, error_rate=error_rate, filepath=filename)
             self.bloomfilters[bfname] = bf
@@ -73,22 +78,27 @@ class Application(tornado.web.Application):
         if isnew:
             if not self.conf.has_section('bloomfilters'):
                 self.conf.add_section('bloomfilters')
-            self.conf.set('bloomfilters', bfname, '%s,%s,%s,%s' % (bfname, capacity, error_rate, filename))
+            self.conf.set('bloomfilters', bfname, '%s,%s,%s,%s,%s' % (bfname, capacity, error_rate, filename, create_time))
             if self.config_file:
                 self.config_file = 'config.ini'
             self.conf.write(open(self.config_file, 'w'))
             self.logger.info('add bloomfilter %s %s %s %s' % (bfname, capacity, error_rate, filename))
+        self.bloomfilters_params[bfname] = (bfname, capacity, error_rate, create_time)
         return True
 
     def _del_bloomfilter_(self, bfname):
         bf = self.bloomfilters[bfname]
         #delete bf
         self.bloomfilters.pop(bfname)
+        self.bloomfilters_params.pop(bfname)
         if not self.conf.has_section('bloomfilters'):
             self.conf.add_section('bloomfilters')
         self.conf.remove_option('bloomfilters', bfname)
         if self.config_file:
             self.config_file = 'config.ini'
+        filename = '%s.bloom.bin' % bfname
+        if os.path.isfile(filename):
+            os.remove(filename)
         self.conf.write(open(self.config_file, 'w'))
         self.logger.info('del bloomfilter %s' % (bfname))
 
@@ -228,18 +238,18 @@ class BloomFilterManagerHandler(tornado.web.RequestHandler):
     def _del_bloomfilter_(self, bfname):
         return self.application._del_bloomfilter_(bfname)
         
-    def get(self):
+    def get(self, action):
         errcode = 0
         errmsg = 'success'
         try:
-            bfname = self.get_argument("bf", None)
-            action = self.get_argument("action", None)
-            if (not bfname) or (not action):
-                raise ValueError('usage: /manager?action=add&bf=xxx&capacity=xx&error_rate=0.00001 /manager?action=del&bf=xxx')
-                #raise ValueError('bf action are needed')
             support_actions = ['add', 'del']
+            #action = self.get_argument("action", None)
             if action not in support_actions:
                 raise ValueError('action for %s not support' % bfname)
+            bfname = self.get_argument("bf", None)
+            if (not bfname) or (not action):
+                raise ValueError('usage: /manager/add?bf=xxx&capacity=xx&error_rate=0.00001 /manager/del?bf=xxx')
+                #raise ValueError('bf action are needed')
             if action == 'add':
                 bf = self.bloomfilter(bfname)
                 if bf:
@@ -253,6 +263,8 @@ class BloomFilterManagerHandler(tornado.web.RequestHandler):
                 if not bf:
                     raise ValueError("bloomfilter for '%s' not exist" % bfname)
                 self._del_bloomfilter_(bfname)
+            self.redirect('/bloomfilter')
+            return
         except Exception, e:
             self.logger.exception(e)
             errcode = -1
@@ -260,6 +272,38 @@ class BloomFilterManagerHandler(tornado.web.RequestHandler):
         ret_msg = {'errno': errcode, 'msg': errmsg}
         self.write(ret_msg)
         return
+
+    def post(self, action):
+        self.get(action)
+      
+class BloomFilterListHandler(tornado.web.RequestHandler):
+
+    @property
+    def logger(self):
+        return self.application.logger
+
+    @property
+    def bloomfilters(self):
+        return self.application.bloomfilters
+
+    def bloomfilter(self, bfname):
+        return self.bloomfilters.get(bfname, None)
+
+    @property
+    def bloomfilters_params(self):
+        return self.application.bloomfilters_params
+
+    def get(self):
+        entries = {}
+        bfname = self.get_argument("bf", None)
+        if bfname:
+            if bfname in self.bloomfilters:
+                bfinfo = self.bloomfilters_params[bfname]
+                entries = [bfinfo]
+        else:
+            entries = self.bloomfilters_params.values()
+        print entries
+        return self.render('main.html', entries=entries)
 
     def post(self):
         self.get()
@@ -274,7 +318,6 @@ def main():
     http_server.listen(options.http_port)
     logger.info('listen %s' % options.http_port)
 
-    #这里是绑定信号处理函数，将SIGTERM绑定在函数onsignal_term上面    
     signal.signal(signal.SIGTERM, application.onsignal)  
     signal.signal(signal.SIGINT, application.onsignal)  
 
