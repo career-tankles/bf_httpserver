@@ -170,7 +170,9 @@ class BloomFilterHandler(tornado.web.RequestHandler):
             action = self.get_argument("action", None)
             key = self.get_argument("key", None)
             if (not bfname) or (not action) or (not key) :
-                raise ValueError('bf action key are needed')
+                #raise ValueError('bf action key are needed')
+        #ret_msg = {'errno': errcode, 'msg': errmsg, 'usage': '/filter?bf=xxx&action=add|del|check|checkadd&key=key1,key2'}
+                raise ValueError('usage: /filter?action=add|del|check|checkadd&bf=xxx&key=key1,key2')
             bf = self.bloomfilter(bfname)
             if not bf:
                 raise ValueError("bloomfilter for '%s' not exist" % bfname)
@@ -233,7 +235,8 @@ class BloomFilterManagerHandler(tornado.web.RequestHandler):
             bfname = self.get_argument("bf", None)
             action = self.get_argument("action", None)
             if (not bfname) or (not action):
-                raise ValueError('bf action are needed')
+                raise ValueError('usage: /manager?action=add&bf=xxx&capacity=xx&error_rate=0.00001 /manager?action=del&bf=xxx')
+                #raise ValueError('bf action are needed')
             support_actions = ['add', 'del']
             if action not in support_actions:
                 raise ValueError('action for %s not support' % bfname)
