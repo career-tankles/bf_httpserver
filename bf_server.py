@@ -19,6 +19,7 @@ from tornado.options import define, options
 from mylogger import Logger
 
 define("http_port", default=9898, help="run on the given port", type=int)
+define("proc_num", default=10, help="process number", type=int)
 define("config", default='config.ini', help="bloomfilter config file", type=str)
 
 define("logname", default='monitor', help="log module name", type=str)
@@ -314,13 +315,22 @@ def main():
     logger = Logger.getLogger(options.logname, options.logfile, level=options.loglevel, debug=options.logdebug)
 
     application = Application(options.config, logger)
-    http_server = tornado.httpserver.HTTPServer(application)
-    http_server.listen(options.http_port)
-    logger.info('listen %s' % options.http_port)
 
     signal.signal(signal.SIGTERM, application.onsignal)  
     signal.signal(signal.SIGINT, application.onsignal)  
 
+    logger.info('listen %s' % options.http_port)
+
+    # 单进程
+    #http_server = tornado.httpserver.HTTPServer(application)
+    #http_server.listen(options.http_port)
+    #tornado.ioloop.IOLoop.instance().start()
+
+    # 多进程
+    sockets = tornado.netutil.bind_sockets(options.http_port)
+    tornado.process.fork_processes(options.proc_num)
+    http_server = tornado.httpserver.HTTPServer(application)
+    http_server.add_sockets(sockets)
     tornado.ioloop.IOLoop.instance().start()
 
 if __name__ == "__main__":
